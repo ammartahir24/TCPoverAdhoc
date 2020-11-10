@@ -10,13 +10,22 @@ config = int(sys.argv[1])
 #config = 1
 
 def recv_and_ack():
-	while True:
-		packet = r.pass_on_buffer.get()
+    while True:
+        packet = r.pass_on_buffer.get()
+        
         # print the data received
-		print(packet["transport"]["data"])
+        print(packet["transport"]["data"])
         
-        # Check if the the source was 
+        # Create an ACK
+        ack = {}
+        ack['dest_IP']
+        ack['dest_port']
+        # The ACK is the packet's sequence number + length
+        ack['ack'] = packet['transport']['seq_num'] + packet['transport']['segment_Length']
+        ack['sack'] 
         
+        # Send the ACK
+        r.send(ack)
         
 # Initialize routing and threads
 r = routing.Routing(10, config)

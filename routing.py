@@ -72,12 +72,21 @@ class Routing:
 			try:
 				self.router_queue.put_nowait(packet)
 			except:
-				pass
+				# Probably an ACK. This is a sketchy way to do this LOL
+				try:
+					self.get_ack(packet)
+				except:
+					pass
 
 	def forwarding(self):
 		while True:
 			packet = self.router_queue.get()
+			
+			# A normal packet
 			self.process(packet)
+
+	def get_ack(self, ack):
+		self.ack_buffer.put(ack)
 
 	def process(self, packet):
 		packet_dst = (packet["dst_IP"], packet["dst_port"])
@@ -87,8 +96,6 @@ class Routing:
 			packet_transport = packet["transport"]
 			self.pass_on_buffer.put(packet_transport)
 		else:
-			# Can we assume all other packets for ACKs?
-			self.ack_buffer = packet
 			soc = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 			soc.sendto(json.dumps(packet).encode("utf-8"), forward_to)
 			soc.close()
