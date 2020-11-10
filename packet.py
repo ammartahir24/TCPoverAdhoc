@@ -20,13 +20,14 @@ class Packet:
 			"dst_port" : dst_port
 		}
 
-	def add_TCP_layer(self, seq_num, ack_num, src_port, dst_port, checksum, window, syn=False, ack=False, ecn=False):
+	def add_TCP_layer(self, src_port, dst_port, checksum, seq_num, ack_num, segment_len, window, syn=False, ack=False, ecn=False):
 		self.transport = {
 			"seq_num" : seq_num,
 			"ack_num" : ack_num,
 			"src_port" : src_port,
 			"dst_port" : dst_port,
 			"checksum" : checksum,
+            "segment_length": segment_len,
 			"window" : window,
 			"syn" : syn,
 			"ack" : ack,

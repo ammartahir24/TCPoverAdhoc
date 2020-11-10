@@ -6,6 +6,7 @@ import threading
 import hashlib
 
 config = int(sys.argv[1])
+#config = 1
 
 def recv():
 	while True:
@@ -14,7 +15,6 @@ def recv():
 
 r = routing.Routing(10, config)
 threading.Thread(target=recv).start()
-
 
 if len(sys.argv) > 2:
 	host = sys.argv[2]
