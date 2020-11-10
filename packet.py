@@ -49,7 +49,21 @@ class Packet:
 		packet["transport"]["padding"] = ""
 		size_temp = sys.getsizeof(json.dumps(packet).encode("utf-8"))
 		packet["transport"]["padding"] = " " * (self.packet_size - size_temp)
+        
 		return packet
+
+	def generate_ack(packet):
+		ack = {}
+		ack['dst_IP'] = packet['src_IP']
+		ack['dst_port'] = packet['src_port']
+		ack['src_IP'] =  packet['dst_IP'] 
+		ack['src_IP'] = packet['dst_port']
+		
+		# The ACK is the packet's sequence number + length
+		ack['ack'] = packet['transport']['seq_num'] + packet['transport']['segment_Length']
+		ack['sack'] = False
+		
+		return ack
 
 # p = Packet()
 # data = ""

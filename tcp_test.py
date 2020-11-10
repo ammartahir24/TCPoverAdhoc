@@ -16,20 +16,33 @@ def recv_and_ack():
         # print the data received
         print(packet["transport"]["data"])
         
-        # Create an ACK
-        ack = {}
-        ack['dest_IP']
-        ack['dest_port']
-        # The ACK is the packet's sequence number + length
-        ack['ack'] = packet['transport']['seq_num'] + packet['transport']['segment_Length']
-        ack['sack'] 
+        # Create an ACK and send back to the packet's source
+        ack = p.generate_ack(packet)
         
         # Send the ACK
         r.send(ack)
         
+def send_sack(sack):
+    r.send(sack)
+    
+def compare_ack_window():
+    # Get the ACK from the queue
+    ack = r.ack_buffer.get()
+    
+    # Check the ACK against the window
+    
+        
 # Initialize routing and threads
 r = routing.Routing(10, config)
 threading.Thread(target=recv_and_ack).start()
+
+# Intialize the ACK buffer
+
+# Construct the window from receievd packets
+
+# Read the ACKs and compare against the window
+
+# If there is missing data in the window, then add a SACK and send back
 
 # Check for additional arguments: host and port
 if len(sys.argv) > 2:
