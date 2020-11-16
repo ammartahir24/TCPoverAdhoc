@@ -20,10 +20,11 @@ class Packet:
 			"dst_port" : dst_port
 		}
 
-	def add_TCP_layer(self, src_port, dst_port, checksum, seq_num, ack_num, segment_len, window, syn=False, ack=False, ecn=False):
+	def add_TCP_layer(self, src_port, dst_port, checksum, seq_num, ack_num, sack_num, segment_len, window, syn=False, ack=False, ecn=False):
 		self.transport = {
 			"seq_num" : seq_num,
 			"ack_num" : ack_num,
+            "sack_num" : sack_num,
 			"src_port" : src_port,
 			"dst_port" : dst_port,
 			"checksum" : checksum,
@@ -52,18 +53,18 @@ class Packet:
         
 		return packet
 
-	def generate_ack(packet):
-		ack = {}
-		ack['dst_IP'] = packet['src_IP']
-		ack['dst_port'] = packet['src_port']
-		ack['src_IP'] =  packet['dst_IP'] 
-		ack['src_IP'] = packet['dst_port']
-		
-		# The ACK is the packet's sequence number + length
-		ack['ack'] = packet['transport']['seq_num'] + packet['transport']['segment_Length']
-		ack['sack'] = False
-		
-		return ack
+#	def generate_ack(packet):
+#		ack = {}
+#		ack['dst_IP'] = packet['src_IP']
+#		ack['dst_port'] = packet['src_port']
+#		ack['src_IP'] =  packet['dst_IP'] 
+#		ack['src_IP'] = packet['dst_port']
+#		
+#		# The ACK is the packet's sequence number + length
+#		ack['ack'] = packet['transport']['seq_num'] + packet['transport']['segment_Length']
+#		ack['sack'] = False
+#		
+#		return ack
 
 # p = Packet()
 # data = ""

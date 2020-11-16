@@ -70,13 +70,15 @@ class Routing:
 			msg, s_addr = soc.recvfrom(1024)
 			packet = json.loads(msg.decode("utf-8")) # jsonify message here
 			try:
-				self.router_queue.put_nowait(packet)
-			except:
-				# Probably an ACK. This is a sketchy way to do this LOL
-				try:
+				# This packet contains data for the transmission
+				if packet['transport']['ack'] == False:
+					self.router_queue.put_nowait(packet)
+				else: 
+				# Probably an ACK
 					self.get_ack(packet)
-				except:
-					pass
+			except:
+				print("routing.listener: This packet is neither a data packet nor an ACK. ERROR.")
+				pass
 
 	def forwarding(self):
 		while True:
