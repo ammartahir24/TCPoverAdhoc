@@ -93,8 +93,9 @@ class Routing:
 		forward_to = self.routes[packet_dst]
 		print("Forwarding to", forward_to)
 		if forward_to == 0:
+			recv_addr = packet["src_IP"], packet["src_port"]
 			packet_transport = packet["transport"]
-			self.pass_on_buffer.put(packet_transport)
+			self.pass_on_buffer.put((packet_transport, recv_addr))
 		else:
 			soc = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 			soc.sendto(json.dumps(packet).encode("utf-8"), forward_to)
@@ -105,4 +106,7 @@ class Routing:
 			self.router_queue.put_nowait(packet)
 		except:
 			pass
-        
+    
+    def recv(self):
+		data, addr = self.pass_on_buffer.get()
+		return data, addr

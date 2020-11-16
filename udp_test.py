@@ -8,13 +8,13 @@ import hashlib
 config = int(sys.argv[1])
 #config = 1
 
-def recv():
+def receiver():
 	while True:
-		data = r.pass_on_buffer.get()
-		print(data)
+		data, addr = r.recv()
+		print(data, addr)
 
 r = routing.Routing(10, config)
-threading.Thread(target=recv).start()
+threading.Thread(target=receiver).start()
 
 if len(sys.argv) > 2:
 	host = sys.argv[2]
