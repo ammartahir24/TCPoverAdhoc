@@ -3,7 +3,7 @@ import json
 import hashlib
 
 class Packet:
-	def __init__(self, size=1024):
+	def __init__(self, size = 1024):
 		self.packet_size = size
 		self.data = {}
 		self.transport = {}
