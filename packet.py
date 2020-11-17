@@ -3,7 +3,7 @@ import json
 import hashlib
 
 class Packet:
-	def __init__(self, size=1024):
+	def __init__(self, size = 1024):
 		self.packet_size = size
 		self.data = {}
 		self.transport = {}
@@ -27,7 +27,6 @@ class Packet:
 			"src_port" : src_port,
 			"dst_port" : dst_port,
 			"checksum" : checksum,
-            "segment_length": segment_len,
 			"window" : window,
 			"syn" : syn,
 			"ack" : ack,
@@ -53,18 +52,18 @@ class Packet:
         
 		return packet
 
-	def generate_ack(packet):
-		ack = {}
-		ack['dst_IP'] = packet['src_IP']
-		ack['dst_port'] = packet['src_port']
-		ack['src_IP'] =  packet['dst_IP'] 
-		ack['src_IP'] = packet['dst_port']
-		
-		# The ACK is the packet's sequence number + length
-		ack['ack'] = packet['transport']['seq_num'] + packet['transport']['segment_Length']
-		ack['sack'] = False
-		
-		return ack
+#	def generate_ack(packet):
+#		ack = {}
+#		ack['dst_IP'] = packet['src_IP']
+#		ack['dst_port'] = packet['src_port']
+#		ack['src_IP'] =  packet['dst_IP'] 
+#		ack['src_IP'] = packet['dst_port']
+#		
+#		# The ACK is the packet's sequence number + length
+#		ack['ack'] = packet['transport']['seq_num'] + packet['transport']['segment_Length']
+#		ack['sack'] = False
+#		
+#		return ack
 
 	@staticmethod
 	def syn_packet(addr, recv_addr, seq_num, window):

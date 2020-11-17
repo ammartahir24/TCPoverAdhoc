@@ -10,9 +10,12 @@ config = int(sys.argv[1])
 
 def receiver():
 	while True:
-		data, addr = r.recv()
-		print(data, addr)
-
+		try:
+			data, addr = r.recv()
+			print(data, addr)
+		except queue.Empty:
+			print("Timed out.")
+			
 r = routing.Routing(10, config)
 threading.Thread(target=receiver).start()
 
