@@ -10,7 +10,7 @@ import hashlib
 class ClientSocket:
 	def __init__(self, sender_addr, tcp_socket, seq_num, ack_num, rwnd):
 		self.sender_addr = sender_addr[0]
-		self.sender_port = sender_port[1]
+		self.sender_port = sender_addr[1]
 		self.tcp_socket = tcp_socket
 		self.leftover = ""
 		self.seq_num = seq_num
@@ -130,7 +130,7 @@ class ClientSocket:
 
 	def close(self):
 		# exchange fin packets here
-		self.tcp_socket.delete(self.sender_addr)
+		self.tcp_socket.delete((self.sender_addr, self.sender_port))
 
 
 class TCPSocket:
@@ -138,8 +138,8 @@ class TCPSocket:
 		self.routing = routing.Routing(10, i)
 		self.addr = self.routing.addr
 		self.queues = {}
+		self.queues[1] = queue.SimpleQueue()
 		self.ack_queues = {}
-		self.fin_queues = {}
 		self.default_rwnd = 5000
 		threading.Thread(target = self.listener).start()
 
@@ -147,6 +147,7 @@ class TCPSocket:
 	def listener(self):
 		while True:
 			data, addr = self.routing.recv()
+			print(data, addr)
 			if addr in self.queues:
 				if data['ack'] == True:
 					self.ack_queues[addr].put(data)
@@ -163,7 +164,7 @@ class TCPSocket:
 		seq_num = random.randrange(100000)
 		ack_num = syn_pkt['seq_num'] + 1
 		syn_ack_packet = packet.Packet.syn_ack_packet(self.addr, addr, seq_num, ack_num, self.default_rwnd)
-		self.put(addr, syn_ack_packet)
+		self.put(syn_ack_packet)
 		ack_packet = self.get_acks(addr)
 		seq_num = seq_num + 1
 		conn = ClientSocket(addr, self, seq_num, ack_num, self.default_rwnd)
@@ -175,12 +176,12 @@ class TCPSocket:
 		# done: send a syn packet, wait for syn-ack, then send an ack packet, if successful return conn object otherwise error
 		seq_num = random.randrange(100000)
 		syn_packet = packet.Packet.syn_packet(self.addr, addr, seq_num, self.default_rwnd)
-		self.put(addr, syn_packet)
+		self.put(syn_packet)
 		syn_ack_packet = self.get_acks(addr)
 		ack_num = syn_ack_packet['seq_num'] + 1
 		seq_num = seq_num + 1
 		ack_packet = packet.Packet.ack_packet(self.addr, addr, seq_num, ack_num, self.default_rwnd)
-		self.put(addr, ack_packet)
+		self.put(ack_packet)
 		conn = ClientSocket(addr, self, seq_num, ack_num, self.default_rwnd)
 		return conn
 		
