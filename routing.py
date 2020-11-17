@@ -89,7 +89,7 @@ class Routing:
 		except:
 			pass
 		
-	def recv(self):
-		data, addr = self.pass_on_buffer.get()
+	def recv(self, timeout = None):
+		data, addr = self.pass_on_buffer.get(timeout = timeout)
 		return data, addr
 	
