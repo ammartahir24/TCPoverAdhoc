@@ -56,8 +56,19 @@ class TCPSocket:
 		conn = ClientSocket(addr, self)
 		return conn, addr
 
+	def connect(self, addr):
+		self.queues[addr] = queue.SimpleQueue()
+		self.ack_queues[addr] = queue.SimpleQueue()
+		# send a syn packet, wait for syn-ack, then send an ack packet, if successful return conn object otherwise error
+		conn = ClientSocket(addr, self)
+		return conn
+		
+
 	def get(self, addr):
 		return self.queues[addr].get()
+
+	def put(self, addr, data):
+		self.routing.send(data)
 
 	def get_acks(self, addr):
 		return self.ack_queues[addr].get()
