@@ -66,9 +66,6 @@ class Routing:
 			
 			# A normal packet
 			self.process(packet)
-			
-	def get_ack(self, ack):
-		self.ack_buffer.put(ack)
 		
 	def process(self, packet):
 		packet_dst = (packet["dst_IP"], packet["dst_port"])
