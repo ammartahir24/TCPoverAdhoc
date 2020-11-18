@@ -140,11 +140,11 @@ class ClientSocket:
 	
 				# Add TCP layer information
 				p.add_TCP_layer(addr[1],
-								sender_port,
-								hashlib.md5(data_segment.encode("utf-8")).hexdigest(),
-								seq_num = seq_num,
-								ack_num = seq_num + packet_size,
-								)
+					sender_port,
+					hashlib.md5(data_segment.encode("utf-8")).hexdigest(),
+					seq_num = seq_num,
+					ack_num = seq_num + packet_size,
+					)
 				
 				# Add IP information
 				p.add_IP_layer(addr[0], addr[1], sender_addr, sender_port)
