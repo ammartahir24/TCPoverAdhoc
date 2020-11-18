@@ -36,7 +36,7 @@ class Routing:
 		
 		self.routes = self.route_configs[i]
 		self.addr = self.addr_configs[i]
-		print("running on ", self.addr)
+		print("routing - running on ", self.addr)
 		# buffer to write data meant for this node, an unbounded queue
 		self.pass_on_buffer = queue.SimpleQueue()
 		# router queue: thread safe, use put_nowait() and get()
@@ -73,7 +73,7 @@ class Routing:
 	def process(self, packet):
 		packet_dst = (packet["dst_IP"], packet["dst_port"])
 		forward_to = self.routes[packet_dst]
-		print("Forwarding to", forward_to)
+		print("routing - Forwarding to", forward_to)
 		if forward_to == 0:
 			recv_addr = packet["src_IP"], packet["src_port"]
 			packet_transport = packet["transport"]
