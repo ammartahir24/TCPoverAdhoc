@@ -8,14 +8,17 @@ import hashlib
 
 
 class ClientSocket:
-	def __init__(self, sender_addr, tcp_socket, seq_num, ack_num, rwnd):
+	def __init__(self, sender_addr, tcp_socket, seq_num, ack_num, rwnd_size):
 		self.sender_addr = sender_addr[0]
 		self.sender_port = sender_addr[1]
 		self.tcp_socket = tcp_socket
-		self.leftover = ""
 		self.seq_num = seq_num
 		self.ack_num = ack_num
-		self.rwnd = rwnd
+		self.rwnd_size = rwnd_size
+		# Receive window
+		self.rwnd = []
+		# Receieve packets and respond with ACKs
+		self.poll = threading.Thread(target = self.poll).start()
 
 	def send(self, data):
 		# packetize data: make chunks and put them in packets DONE
@@ -34,12 +37,14 @@ class ClientSocket:
 		# Split and packetize data
 		pkt_buffer = self.packetize(data)
 		
+		print(pkt_buffer)
+		
 		# Total bytes of data to be sent (based on the last packet's ACK number)
 		total_bytes = pkt_buffer[-1]['transport']['ack_num'] # - 1
 		
 		# Window start
-		window_size = pkt_buffer[-1]['transport']['window']
-		window_size = 1000
+		# window_size = pkt_buffer[-1]['transport']['window']
+		window_size = self.rwnd_size
 		
 		# Start the send progress
 		while snd_una <= total_bytes:
@@ -52,6 +57,8 @@ class ClientSocket:
 				
 				# Send the packet in the buffer through the TCP Socket
 				self.tcp_socket.put(pkt)
+				
+				print(pkt)
 				
 				# Update the snd_next points
 				snd_next += pkt['transport']['ack_num'] - pkt['transport']['seq_num']
@@ -75,29 +82,49 @@ class ClientSocket:
 		# for each packet you make call to get for, send back an ack to sender
 		# 1- recv(buffer_size): the client calls this function and you should return first buffer_size amount of data from your window 2- poll(): This function continuously polls the ingress queues by calling function self.tcp_socket.get(self.sender_addr) and writes it to the window
 		
-		self.leftover
+		data = self.rwnd[:num_of_bytes]
+		self.rwnd = self.rwnd[num_of_bytes:]
 		
-		return buffer_size
+		return data
 		
-	def poll():
+	def poll(self):
+		sender_addr_port = (self.sender_addr, self.sender_port)
+		addr = self.tcp_socket.addr
 		# Receieve window pointer
 		rcv_next = 1
 		# Receive window
-		rwnd = self.rwnd
+		#rwnd = self.rwnd
 		# Packet buffer
 		buffer = []
 		
 		# If the seq_num is last ACK + 1, accept. Otherwise, discard out of order
-		
 		while True:
+			# Retrieve the packet from the queue
 			pkt = self.tcp_socket.get(self.sender_addr)
 			seq_num = pkt['transport']['seq_num']
 			
 			# If the packet is the next one needed in the sequence, update the pointer and insert into the window
 			if seq_num == rcv_next:
-				rcv_next = seq_num
+				rcv_next = seq_num + 1 
 				buffer.append(pkt)
+				self.rwnd.append(pkt['data'].split('\n'))
+				
+				# Create the ACK
+				ack = packet.Packet().ack_packet(addr = addr, 
+					   recvr_addr = sender_addr_port,
+					   seq_num = seq_num,
+					   ack_num = rcv_next,
+					   window = self.rwnd_size)
+				
+				# Send the ACK
+				self.tcp_socket.put(ack)
+				
+			elif seq_num > rcv_next:
+				# Probably a duplicate packet or a SACK packet
+				print(seq_num, ' > ', rcv_next)
+				pass
 			else:
+				# Check buffer for next packet
 				# discard
 				pass
 			
@@ -171,6 +198,7 @@ class ClientSocket:
 	def close(self):
 		# exchange fin packets here
 		self.tcp_socket.delete((self.sender_addr, self.sender_port))
+		self.poll.join()
 
 
 class TCPSocket:
