@@ -12,15 +12,16 @@ class Packet:
 	def add_data(self, data):
 		self.data = data
 
-	def add_IP_layer(self, src_IP, src_port, dst_IP, dst_port):
+	def add_IP_layer(self, src_IP, src_port, dst_IP, dst_port, ecn=False):
 		self.ip = {
 			"src_IP" : src_IP,
 			"dst_IP" : dst_IP,
 			"src_port" : src_port,
-			"dst_port" : dst_port
+			"dst_port" : dst_port,
+			"ecn" : ecn
 		}
 
-	def add_TCP_layer(self, src_port, dst_port, checksum, seq_num, ack_num, window, syn=False, ack=False, ecn=False, fin=False):
+	def add_TCP_layer(self, src_port, dst_port, checksum, seq_num, ack_num, window, syn=False, ack=False, fin=False):
 		self.transport = {
 			"seq_num" : seq_num,
 			"ack_num" : ack_num,
@@ -34,12 +35,11 @@ class Packet:
 			"fin" : fin
 		}
 
-	def add_UDP_layer(self, src_port, dst_port, checksum, ecn=False):
+	def add_UDP_layer(self, src_port, dst_port, checksum):
 		self.transport = {
 			"src_port" : src_port,
 			"dst_port" : dst_port,
-			"checksum" : checksum,
-			"ecn" : ecn
+			"checksum" : checksum
 		}
 
 	def generate_packet(self):
