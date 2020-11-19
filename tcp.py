@@ -18,7 +18,7 @@ class ClientSocket:
 		# Receive window
 		self.rwnd = []
 		# Receieve packets and respond with ACKs
-		self.poll = threading.Thread(target = self.poll).start()
+		threading.Thread(target = self.poll).start()
 
 	def send(self, data):
 		# packetize data: make chunks and put them in packets DONE
@@ -110,8 +110,8 @@ class ClientSocket:
 				self.rwnd.append(pkt['data'].split('\n'))
 				
 				# Create the ACK
-				ack = packet.Packet().ack_packet(addr = addr, 
-					   recvr_addr = sender_addr_port,
+				ack = packet.Packet().ack_packet(addr = sender_addr_port, 
+					   recvr_addr = addr,
 					   seq_num = seq_num,
 					   ack_num = rcv_next,
 					   window = self.rwnd_size)
