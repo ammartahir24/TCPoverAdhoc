@@ -31,7 +31,6 @@ class Packet:
 			"window" : window,
 			"syn" : syn,
 			"ack" : ack,
-			"ecn" : ecn,
 			"fin" : fin
 		}
 
