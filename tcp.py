@@ -16,9 +16,10 @@ class ClientSocket:
 		self.tcp_socket = tcp_socket
 		self.seq_num = seq_num
 		self.ack_num = ack_num
-		self.rwnd_size = rwnd_size
+		self.rwnd_size = 5
 		self.cwnd_size = 1
 		self.ssthresh = rwnd_size
+		self.rwnd_recv = rwnd_size
 		self.MTU = 600
 		self.rto = 0.05
 		# Receive window
@@ -46,10 +47,16 @@ class ClientSocket:
 		print(chunks)
 		
 		for chunk in chunks:
-			data_pkt = packet.Packet.data_packet(chunk, self.addr, (self.sender_addr, self.sender_port), self.seq_num, self.ack_num, self.rwnd_size)
-			self.tcp_socket.put(data_pkt)
-			ack_packet = self.tcp_socket.get_acks((self.sender_addr, self.sender_port))
-			self.seq_num += 1
+			if self.rwnd_recv > 0:
+				data_pkt = packet.Packet.data_packet(chunk, self.addr, (self.sender_addr, self.sender_port), self.seq_num, self.ack_num, self.rwnd_size)
+				self.tcp_socket.put(data_pkt)
+				ack_packet = self.tcp_socket.get_acks((self.sender_addr, self.sender_port))
+				self.seq_num += 1
+				self.rwnd_recv = ack_packet['window']
+			else:
+				ack_packet = self.tcp_socket.get_acks((self.sender_addr, self.sender_port))
+				self.rwnd_recv = ack_packet['window']
+
 		# # Total bytes of data to be sent (based on the last packet's ACK number)
 		# total_bytes = pkt_buffer[-1]['transport']['ack_num'] # - 1
 		
@@ -95,12 +102,14 @@ class ClientSocket:
 				d = self.rwnd.get()
 				data += d
 				num_of_chunks -= 1
+				self.rwnd_size += 1
 			return data
 		while num_of_chunks > 0:
 			try:
 				d = self.rwnd.get_nowait()
 				data += d
 				num_of_chunks -= 1
+				self.rwnd_size += 1
 			except:
 				return data
 		return data
@@ -126,18 +135,31 @@ class ClientSocket:
 				self.ack_num = seq_num + 1 
 				# buffer_t += pkt['data']
 				self.rwnd.put(pkt['data'])
-				self.rwnd_size -= len(pkt['data'])
+				self.rwnd_size -= 1
 				
 				# Create the ACK
+				window = self.rwnd_size
 				ack = packet.Packet().ack_packet(self.addr, 
 					   sender_addr_port,
 					   self.seq_num,
 					   self.ack_num,
-					   window = self.rwnd_size)
+					   window = window)
 				
 				# Send the ACK
 				self.tcp_socket.put(ack)
 				
+				if window <= 0:
+					while self.rwnd_size <= 0:
+						continue
+					window = self.rwnd_size
+					ack = packet.Packet().ack_packet(self.addr, 
+						   sender_addr_port,
+						   self.seq_num,
+						   self.ack_num,
+						   window = window)
+					self.tcp_socket.put(ack)
+
+
 			elif seq_num > rcv_next:
 				# Probably a duplicate packet or a SACK packet
 				print(seq_num, ' > ', rcv_next)
@@ -235,7 +257,7 @@ class TCPSocket:
 		self.queues = {}
 		self.queues[1] = queue.SimpleQueue()
 		self.ack_queues = {}
-		self.default_rwnd = 5000
+		self.default_rwnd = 5
 		threading.Thread(target = self.listener).start()
 
 
