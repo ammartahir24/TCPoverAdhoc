@@ -70,7 +70,7 @@ class Routing:
 	def process(self, packet):
 		packet_dst = (packet["dst_IP"], packet["dst_port"])
 		forward_to = self.routes[packet_dst]
-		print("routing - Forwarding to", forward_to)
+		# print("routing - Forwarding to", forward_to)
 		if forward_to == 0:
 			recv_addr = packet["src_IP"], packet["src_port"]
 			packet_transport = packet["transport"]
