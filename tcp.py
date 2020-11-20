@@ -9,7 +9,7 @@ import time
 
 
 class ClientSocket:
-	def __init__(self, addr, sender_addr, tcp_socket, seq_num, ack_num, rwnd_size):
+	def __init__(self, addr, sender_addr, tcp_socket, seq_num, ack_num, rwnd_size, rtt):
 		self.sender_addr = sender_addr[0]
 		self.sender_port = sender_addr[1]
 		self.addr = addr
@@ -22,8 +22,10 @@ class ClientSocket:
 		self.ssthresh = rwnd_size
 		self.rwnd_recv = rwnd_size
 		self.MTU = 600
-		self.rtt = 0.05
-		self.rto = self.rtt * 4
+		self.rtt = rtt
+		if rtt < 0.01:
+			self.rtt = 0.01
+		self.rto = self.rtt * 16
 		# Receive window
 		self.rwnd = queue.SimpleQueue()
 		# Receieve packets and respond with ACKs
@@ -70,7 +72,7 @@ class ClientSocket:
 								i = (curr_ack - self.base_seq_num)
 								self.ssthresh = int(self.cwnd_size/2)
 								self.cwnd_size = self.ssthresh
-								print("Successful delivery.")
+								print("3 dupacks.")
 								print(self.ssthresh, self.cwnd_size)
 								break
 					except:
@@ -244,10 +246,13 @@ class TCPSocket:
 		seq_num = random.randrange(100000)
 		ack_num = syn_pkt['seq_num'] + 1
 		syn_ack_packet = packet.Packet.syn_ack_packet(self.addr, addr, seq_num, ack_num, self.default_rwnd)
+		start_time = time.time_ns()
 		self.put(syn_ack_packet)
 		ack_packet = self.get_acks(addr)
+		end_time = time.time_ns()
+		rtt = (end_time - start_time) / (10**9)
 		seq_num = seq_num + 1
-		conn = ClientSocket(self.addr, addr, self, seq_num, ack_num, self.default_rwnd)
+		conn = ClientSocket(self.addr, addr, self, seq_num, ack_num, self.default_rwnd, rtt)
 		return conn, addr
 
 	def connect(self, addr):
@@ -256,13 +261,16 @@ class TCPSocket:
 		# done: send a syn packet, wait for syn-ack, then send an ack packet, if successful return conn object otherwise error
 		seq_num = random.randrange(100000)
 		syn_packet = packet.Packet.syn_packet(self.addr, addr, seq_num, self.default_rwnd)
+		start_time = time.time_ns()
 		self.put(syn_packet)
 		syn_ack_packet = self.get_acks(addr)
+		end_time = time.time_ns()
+		rtt = (end_time - start_time) / (10**9)
 		ack_num = syn_ack_packet['seq_num'] + 1
 		seq_num = seq_num + 1
 		ack_packet = packet.Packet.ack_packet(self.addr, addr, seq_num, ack_num, self.default_rwnd)
 		self.put(ack_packet)
-		conn = ClientSocket(self.addr, addr, self, seq_num, ack_num, self.default_rwnd)
+		conn = ClientSocket(self.addr, addr, self, seq_num, ack_num, self.default_rwnd, rtt)
 		return conn
 		
 
