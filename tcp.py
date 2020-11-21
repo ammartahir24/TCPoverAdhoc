@@ -17,7 +17,7 @@ class ClientSocket:
 		self.seq_num = seq_num
 		self.base_seq_num = seq_num
 		self.ack_num = ack_num
-		self.rwnd_size = 100
+		self.rwnd_size = 50
 		self.cwnd_size = 1
 		self.ssthresh = rwnd_size
 		self.rwnd_recv = rwnd_size
@@ -167,7 +167,7 @@ class ClientSocket:
 
 			elif seq_num > self.ack_num:
 				# Probably a duplicate packet or a SACK packet
-				print("Out of order packet")
+				print("Out of order packet", self.seq_num, self.ack_num)
 				window = self.rwnd_size
 				ack = packet.Packet().ack_packet(self.addr, 
 					   sender_addr_port,
@@ -217,12 +217,12 @@ class ClientSocket:
 
 class TCPSocket:
 	def __init__(self, i):
-		self.routing = routing.Routing(20, i)
+		self.routing = routing.Routing(80, i)
 		self.addr = self.routing.addr
 		self.queues = {}
 		self.queues[1] = queue.SimpleQueue()
 		self.ack_queues = {}
-		self.default_rwnd = 5
+		self.default_rwnd = 50
 		threading.Thread(target = self.listener).start()
 
 

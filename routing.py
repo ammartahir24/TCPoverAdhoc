@@ -33,10 +33,21 @@ class Routing:
 		},
 	]
 		self.addr_configs = [("127.0.0.1", 5000), ("127.0.0.1", 6000), ("127.0.0.1", 7000), ("127.0.0.1", 8000)]
-		
 		self.routes = self.route_configs[i]
 		self.addr = self.addr_configs[i]
 		print("routing - running on ", self.addr)
+		self.etxs = {}
+		if i == 0:
+			self.etxs[self.addr_configs[1]] = 1
+			threading.Thread(target = self.etx_probing, args=(self.addr_configs[1])).start()
+		elif i == (len(addr_configs) - 1):
+			self.etxs[self.addr_configs[-2]] = 1
+			threading.Thread(target = self.etx_probing, args=(self.addr_configs[-2])).start()
+		else:
+			self.etxs[self.addr_configs[i-1]] = 1
+			threading.Thread(target = self.etx_probing, args=(self.addr_configs[i-1])).start()
+			self.etxs[self.addr_configs[i+1]] = 1
+			threading.Thread(target = self.etx_probing, args=(self.addr_configs[i+1])).start()
 		# buffer to write data meant for this node, an unbounded queue
 		self.pass_on_buffer = queue.SimpleQueue()
 		# router queue: thread safe, use put_nowait() and get()
@@ -90,3 +101,8 @@ class Routing:
 		data, addr = self.pass_on_buffer.get(timeout = timeout)
 		return data, addr
 	
+	def etx_probing(self, addr):
+		# implement probing algorithm here, feel free to make any additional class functions as needed
+		# you will need a separate thread to listen to probe packets, span it from init as you need it
+		# this function runs in separate thread for each neighbour, in each thread you are probing node with (host, port)=addr
+		# you will update the etx for this addr by updating self.etxs[addr], which is initialy set to 1 (see init)
