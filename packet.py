@@ -63,6 +63,18 @@ class Packet:
 #		ack['sack'] = False
 #		
 #		return ack
+		
+	@staticmethod
+	def etx_packet(addr, recv_addr, etx_num):
+		data = ""
+		p = Packet()
+		p.add_data(data)
+		p.add_IP_layer(addr[0], addr[1], recv_addr[0], recv_addr[1])
+		packet = p.generate_packet()
+		# Add etx information
+		packet["transport"]["etx"] = True
+		packet["transport"]["etx_num"] = etx_num
+		return packet
 
 	@staticmethod
 	def syn_packet(addr, recv_addr, seq_num, window):
@@ -122,6 +134,7 @@ class Packet:
 		p.add_IP_layer(addr[0], addr[1], recv_addr[0], recv_addr[1])
 		packet = p.generate_packet()
 		return packet
+	
 # p = Packet()
 # data = ""
 # p.add_data(data)
