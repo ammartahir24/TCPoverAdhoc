@@ -159,6 +159,7 @@ class Routing:
 			# Send the ETX probe packet
 			self.send(probe_pkt)			
 			#print('pkt sent')
+			
 			# Receive a probe packet from the queue
 			if not self.etx_queues[addr].empty():
 				probe_etx = self.etx_queues[addr].get()
@@ -174,7 +175,7 @@ class Routing:
 			
 			# Update the ETX between the current node (here) to the neighbor node
 			# TODO: divide by zero?
-			pkt_probability = (1 - (sum(pkt_list) / len(pkt_list)) * (1 - (probe_etx / len(pkt_list))))
+			pkt_probability = (1 - sum(pkt_list) / len(pkt_list)) * (1 - (probe_etx / len(pkt_list)))
 			self.etxs[addr] = 1 / pkt_probability
 			
 			#print(self.addr, self.etxs[addr])
@@ -182,9 +183,4 @@ class Routing:
 			# Lock the packet sending to the system clock and run every second
 			time.sleep(1.0 - ((time.time() - starttime) % 1.0))
 			
-		
-		
-		
-		
-		
 		
