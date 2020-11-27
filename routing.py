@@ -40,26 +40,26 @@ class Routing:
 		self.addr = self.addr_configs[i]
 		print("routing - running on ", self.addr)
 		
-		self.etxs = {}
-		self.etx_queues = {}
+		# self.etxs = {}
+		# self.etx_queues = {}
 		
-		if i == 0:
-			self.etxs[self.addr_configs[1]] = 1
-			self.etx_queues[self.addr_configs[1]] = queue.SimpleQueue()
-			threading.Thread(target = self.etx_probing, args=(self.addr_configs[1],)).start()
+		# if i == 0:
+		# 	self.etxs[self.addr_configs[1]] = 1
+		# 	self.etx_queues[self.addr_configs[1]] = queue.SimpleQueue()
+		# 	threading.Thread(target = self.etx_probing, args=(self.addr_configs[1],)).start()
 			
-		elif i == (len(self.addr_configs) - 1):
-			self.etxs[self.addr_configs[-2]] = 1
-			self.etx_queues[self.addr_configs[-2]] = queue.SimpleQueue()
-			threading.Thread(target = self.etx_probing, args=(self.addr_configs[-2],)).start()
+		# elif i == (len(self.addr_configs) - 1):
+		# 	self.etxs[self.addr_configs[-2]] = 1
+		# 	self.etx_queues[self.addr_configs[-2]] = queue.SimpleQueue()
+		# 	threading.Thread(target = self.etx_probing, args=(self.addr_configs[-2],)).start()
 			
-		else:
-			self.etxs[self.addr_configs[i-1]] = 1
-			self.etx_queues[self.addr_configs[i-1]] = queue.SimpleQueue()
-			threading.Thread(target = self.etx_probing, args=(self.addr_configs[i-1],)).start()
-			self.etxs[self.addr_configs[i+1]] = 1
-			self.etx_queues[self.addr_configs[i+1]] = queue.SimpleQueue()
-			threading.Thread(target = self.etx_probing, args=(self.addr_configs[i+1],)).start()
+		# else:
+		# 	self.etxs[self.addr_configs[i-1]] = 1
+		# 	self.etx_queues[self.addr_configs[i-1]] = queue.SimpleQueue()
+		# 	threading.Thread(target = self.etx_probing, args=(self.addr_configs[i-1],)).start()
+		# 	self.etxs[self.addr_configs[i+1]] = 1
+		# 	self.etx_queues[self.addr_configs[i+1]] = queue.SimpleQueue()
+		# 	threading.Thread(target = self.etx_probing, args=(self.addr_configs[i+1],)).start()
 			
 		# buffer to write data meant for this node, an unbounded queue
 		self.pass_on_buffer = queue.SimpleQueue()
@@ -74,7 +74,7 @@ class Routing:
 		threading.Thread(target = self.listener).start()
 		threading.Thread(target = self.forwarding).start()
 		# Start listener for probe
-		threading.Thread(target = self.listener_probe).start()
+		# threading.Thread(target = self.listener_probe).start()
 		
 
 	def listener(self):
@@ -84,16 +84,19 @@ class Routing:
 			msg, s_addr = soc.recvfrom(1024)
 			packet = json.loads(msg.decode("utf-8")) # jsonify message here
 			# Check for probe packet
-			if packet['transport']['etx'] == True:
-				self.probe_buffer.put_nowait(packet)
-			else:
+			# if packet['transport']['etx'] == True:
+			# 	self.probe_buffer.put_nowait(packet)
+			# else:
+			try:
 				self.router_queue.put_nowait(packet)
+			except:
+				pass
 				# print("routing - listener: Unable to put packet into queue.")
 			
 	def forwarding(self):
 		while True:
 			packet = self.router_queue.get()
-			
+			time.sleep(0.00005)
 			# A normal packet
 			self.process(packet)
 		
