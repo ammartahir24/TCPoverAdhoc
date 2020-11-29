@@ -307,7 +307,7 @@ class ClientSocket:
 				# Send the ACK
 				self.tcp_socket.put(ack)
 				# SACK
-				if self.SACK:
+				if self.SACK and not any(pkt['seq_num'] in item for item in out_of_order.queue):
 					out_of_order.put((pkt['seq_num'], pkt))
 			else:
 				print(seq_num, "received. Expected:", self.ack_num)
