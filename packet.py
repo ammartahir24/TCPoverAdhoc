@@ -21,7 +21,7 @@ class Packet:
 			"ecn" : ecn
 		}
 
-	def add_TCP_layer(self, src_port, dst_port, checksum, seq_num, ack_num, window, syn=False, ack=False, fin=False):
+	def add_TCP_layer(self, src_port, dst_port, checksum, seq_num, ack_num, window, syn=False, ack=False, fin=False, sack = []):
 		self.transport = {
 			"seq_num" : seq_num,
 			"ack_num" : ack_num,
@@ -31,7 +31,8 @@ class Packet:
 			"window" : window,
 			"syn" : syn,
 			"ack" : ack,
-			"fin" : fin
+			"fin" : fin,
+			"sack" : sack
 		}
 
 	def add_UDP_layer(self, src_port, dst_port, checksum):
@@ -97,11 +98,11 @@ class Packet:
 		return packet
 
 	@staticmethod
-	def ack_packet(addr, recv_addr, seq_num, ack_num, window):
+	def ack_packet(addr, recv_addr, seq_num, ack_num, window, sack=[]):
 		data = ""
 		p = Packet()
 		p.add_data(data)
-		p.add_TCP_layer(addr[1], recv_addr[1], hashlib.md5(data.encode("utf-8")).hexdigest(), seq_num, ack_num, window, ack=True)
+		p.add_TCP_layer(addr[1], recv_addr[1], hashlib.md5(data.encode("utf-8")).hexdigest(), seq_num, ack_num, window, ack=True, sack=sack)
 		p.add_IP_layer(addr[0], addr[1], recv_addr[0], recv_addr[1])
 		packet = p.generate_packet()
 		return packet

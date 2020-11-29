@@ -81,13 +81,13 @@ class Routing:
 		soc = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 		soc.bind(self.addr)
 		while(True):
-			msg, s_addr = soc.recvfrom(1024)
-			packet = json.loads(msg.decode("utf-8")) # jsonify message here
+			try:
+				msg, s_addr = soc.recvfrom(1224)
+				packet = json.loads(msg.decode("utf-8")) # jsonify message here
 			# Check for probe packet
 			# if packet['transport']['etx'] == True:
 			# 	self.probe_buffer.put_nowait(packet)
 			# else:
-			try:
 				self.router_queue.put_nowait(packet)
 			except:
 				pass

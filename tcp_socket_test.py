@@ -5,6 +5,7 @@ import time
 import hashlib
 
 
+
 config = int(sys.argv[1])
 # config = 0
 

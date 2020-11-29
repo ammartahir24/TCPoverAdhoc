@@ -10,6 +10,7 @@ import time
 
 class ClientSocket:
 	def __init__(self, addr, sender_addr, tcp_socket, seq_num, ack_num, rwnd_size, rtt):
+		self.SACK = True
 		self.sender_addr = sender_addr[0]
 		self.sender_port = sender_addr[1]
 		self.addr = addr
@@ -23,6 +24,7 @@ class ClientSocket:
 		self.packets_in_trst = 0
 		self.ack_to_update = self.seq_num
 		self.i = 0
+		self.sacked = []
 		self.rwnd_size = 100
 		self.cwnd_size = 1
 		self.ssthresh = rwnd_size
@@ -31,7 +33,7 @@ class ClientSocket:
 		self.rtt = 0.1
 		if rtt < 0.01:
 			self.rtt = 0.01
-		self.rto = self.rtt * 4
+		self.rto = self.rtt * 40
 		# Receive window
 		self.rwnd = queue.SimpleQueue()
 		# Receieve packets and respond with ACKs
@@ -52,10 +54,10 @@ class ClientSocket:
 				try:
 					ack_packet = self.tcp_socket.get_acks((self.sender_addr, self.sender_port), timeout=self.rto)
 					# print(self.ack_to_update, ack_packet['ack_num'], self.curr_ack, self.packets_in_trst)
-					if ack_packet['ack_num'] == self.ack_to_update:
+					if ack_packet['ack_num'] >= self.ack_to_update:
 						# self.seq_num = self.ack_to_update
 						self.packets_in_trst -= (ack_packet['ack_num'] - self.curr_ack)
-						self.curr_ack = self.ack_to_update
+						self.curr_ack = ack_packet['ack_num']
 						self.rwnd_recv = ack_packet['window']
 						if self.cwnd_size < self.ssthresh:
 							self.cwnd_size *= 2
@@ -66,21 +68,28 @@ class ClientSocket:
 						self.make_update = True
 						self.ack_to_update += self.cwnd_size
 						dup_acks = 0
+						if self.SACK:
+							self.sacked = self.decompress(ack_packet['sack'])
 						# break
 					elif ack_packet['ack_num'] > self.curr_ack:
 						self.packets_in_trst -= (ack_packet['ack_num'] - self.curr_ack)
 						self.curr_ack = ack_packet['ack_num']
 						self.rwnd_recv = ack_packet['window']
 						dup_acks = 0
+						if self.SACK:
+							self.sacked = self.decompress(ack_packet['sack'])
 					elif ack_packet['ack_num'] == self.curr_ack:
 						dup_acks += 1
 						self.rwnd_recv = ack_packet['window']
-						if dup_acks == 10:
+						if self.SACK:
+							self.sacked = self.decompress(ack_packet['sack'])
+						if dup_acks == 3:
 							self.shift_back = True
 							self.i = (self.curr_ack - self.seq_num)
-							self.ssthresh = int(self.cwnd_size/2)
+							self.ssthresh = int(1 + self.cwnd_size/2)
 							self.cwnd_size = self.ssthresh
 							self.packets_in_trst = 0
+							self.ack_to_update = self.i + self.seq_num + self.cwnd_size
 							print("dupacks.")
 							print(self.ssthresh, self.cwnd_size)
 						# break
@@ -91,6 +100,7 @@ class ClientSocket:
 					self.ssthresh = int(1 + self.cwnd_size/2)
 					self.cwnd_size = 1
 					self.packets_in_trst = 0
+					self.ack_to_update = self.i + self.seq_num + self.cwnd_size
 					print("packet loss due to timeout", self.i, (self.curr_ack - self.seq_num))
 					print(self.ssthresh, self.cwnd_size)
 					# break
@@ -107,6 +117,9 @@ class ClientSocket:
 		i = 0
 		self.seq_num = self.curr_ack
 		while self.curr_ack < self.seq_num + len(chunks):
+			if self.SACK and (self.seq_num + i) in self.sacked:
+				i += 1
+				continue
 			time.sleep(0.0001)
 			pkts_to_send = min(self.rwnd_recv, (self.cwnd_size - self.packets_in_trst))
 			# print(pkts_to_send, "to send")
@@ -171,6 +184,33 @@ class ClientSocket:
 			# i += 1
 		
 
+	def compress(self, sacks):
+		if sacks == []: 
+			return []
+		nums = []
+		sacks = sorted(sacks)
+		prev = sacks[0]
+		nums.append(prev)
+		for i in sacks[1:]:
+			if i != prev+1:
+				nums.append(prev)
+				nums.append(i)
+				prev = i
+			else:
+				prev += 1
+		nums += [prev]
+		if len(nums) > 10:
+			return nums[:10]
+		return nums
+
+	def decompress(self, nums):
+		if nums == []:
+			return []
+		sacks = []
+		for i in range(int(len(nums)/2)):
+			sacks += [nums[2*i]+k for k in range(nums[2*i+1] - nums[2*i] + 1)]
+		return sacks
+
 	def recv(self, num_of_chunks):
 		data = self.rwnd.get()
 		num_of_chunks -= 1
@@ -199,6 +239,7 @@ class ClientSocket:
 		sender_addr_port = (self.sender_addr, self.sender_port)
 		addr = self.tcp_socket.addr
 		out_of_order = queue.PriorityQueue()
+		sack = []
 		while True:
 			# Retrieve the packet from the queue
 			pkt = self.tcp_socket.get((self.sender_addr, self.sender_port))
@@ -213,19 +254,20 @@ class ClientSocket:
 				self.rwnd_size -= 1
 
 				# SACK
-				# if not out_of_order.empty():
-				# 	print("Came here")
-				# 	pn, pkt2 = out_of_order.get()
-				# 	while pkt2['seq_num'] == self.ack_num:
-				# 		self.ack_num = pkt2['seq_num'] + 1
-				# 		self.rwnd.put(pkt2['data'])
-				# 		self.rwnd_size -= 1
-				# 		if out_of_order.empty():
-				# 			break
-				# 		else:
-				# 			pn, pkt2 = out_of_order.get()
-				# 	if pkt2['seq_num'] != self.ack_num - 1:
-				# 		out_of_order.put((pn, pkt2))
+				if self.SACK and not out_of_order.empty():
+					print("Came here")
+					pn, pkt2 = out_of_order.get()
+					while pkt2['seq_num'] == self.ack_num:
+						self.ack_num = pkt2['seq_num'] + 1
+						self.rwnd.put(pkt2['data'])
+						self.rwnd_size -= 1
+						sack.remove(pkt2['seq_num'])
+						if out_of_order.empty():
+							break
+						else:
+							pn, pkt2 = out_of_order.get()
+					if pkt2['seq_num'] != self.ack_num - 1:
+						out_of_order.put((pn, pkt2))
 
 				# Create the ACK
 				window = self.rwnd_size
@@ -246,7 +288,8 @@ class ClientSocket:
 						   sender_addr_port,
 						   self.seq_num,
 						   self.ack_num,
-						   window = window)
+						   window = window,
+						   sack = self.compress(sack))
 					self.tcp_socket.put(ack)
 
 
@@ -254,28 +297,31 @@ class ClientSocket:
 				# Probably a duplicate packet or a SACK packet
 				print("Out of order packet", seq_num, self.ack_num)
 				window = self.rwnd_size
+				sack.append(seq_num)
 				ack = packet.Packet().ack_packet(self.addr, 
 					   sender_addr_port,
 					   self.seq_num,
 					   self.ack_num,
-					   window = window)
-				
+					   window = window,
+					   sack = self.compress(sack))
 				# Send the ACK
 				self.tcp_socket.put(ack)
 				# SACK
-				# out_of_order.put((pkt['seq_num'], pkt))
+				if self.SACK:
+					out_of_order.put((pkt['seq_num'], pkt))
 			else:
 				print(seq_num, "received. Expected:", self.ack_num)
-				ack = packet.Packet().ack_packet(self.addr, 
-					   sender_addr_port,
-					   self.seq_num,
-					   self.ack_num,
-					   window = window)
+				# ack = packet.Packet().ack_packet(self.addr, 
+				# 	   sender_addr_port,
+				# 	   self.seq_num,
+				# 	   self.ack_num,
+				# 	   window = window,
+				# 	   sack = self.compress(sack))
 				
-				# Send the ACK
-				self.tcp_socket.put(ack)
-				# Check buffer for next packet
-				# discard
+				# # Send the ACK
+				# self.tcp_socket.put(ack)
+				# # Check buffer for next packet
+				# # discard
 				pass
 			
 		
