@@ -11,7 +11,7 @@ import time
 class ClientSocket:
 	def __init__(self, addr, sender_addr, tcp_socket, seq_num, ack_num, rwnd_size, rtt):
 		self.SACK = True
-		self.snoop = True
+		self.snoop = False
 		self.sender_addr = sender_addr[0]
 		self.sender_port = sender_addr[1]
 		self.addr = addr
