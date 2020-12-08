@@ -21,7 +21,7 @@ class Packet:
 			"ecn" : ecn
 		}
 
-	def add_TCP_layer(self, src_port, dst_port, checksum, seq_num, ack_num, window, syn=False, ack=False, fin=False, sack = []):
+	def add_TCP_layer(self, src_port, dst_port, checksum, seq_num, ack_num, window, syn=False, ack=False, fin=False, sack = [], snoop=False):
 		self.transport = {
 			"seq_num" : seq_num,
 			"ack_num" : ack_num,
@@ -32,7 +32,13 @@ class Packet:
 			"syn" : syn,
 			"ack" : ack,
 			"fin" : fin,
-			"sack" : sack
+			"sack" : sack,
+			"snoop" : snoop,
+			"pkt_effort" : 1,
+			"pkt_qos" : 0.8,
+			"etx" : False,
+			"reply" : False,
+			"etx_num" : 0
 		}
 
 	def add_UDP_layer(self, src_port, dst_port, checksum):
@@ -66,7 +72,7 @@ class Packet:
 #		return ack
 		
 	@staticmethod
-	def etx_packet(addr, recv_addr, etx_num):
+	def etx_packet(addr, recv_addr, etx_num, reply=False):
 		data = ""
 		p = Packet()
 		p.add_data(data)
@@ -74,6 +80,7 @@ class Packet:
 		packet = p.generate_packet()
 		# Add etx information
 		packet["transport"]["etx"] = True
+		packet["transport"]["reply"] = reply
 		packet["transport"]["etx_num"] = etx_num
 		return packet
 
@@ -98,20 +105,20 @@ class Packet:
 		return packet
 
 	@staticmethod
-	def ack_packet(addr, recv_addr, seq_num, ack_num, window, sack=[]):
+	def ack_packet(addr, recv_addr, seq_num, ack_num, window, sack=[], snoop=False):
 		data = ""
 		p = Packet()
 		p.add_data(data)
-		p.add_TCP_layer(addr[1], recv_addr[1], hashlib.md5(data.encode("utf-8")).hexdigest(), seq_num, ack_num, window, ack=True, sack=sack)
+		p.add_TCP_layer(addr[1], recv_addr[1], hashlib.md5(data.encode("utf-8")).hexdigest(), seq_num, ack_num, window, ack=True, sack=sack, snoop=snoop)
 		p.add_IP_layer(addr[0], addr[1], recv_addr[0], recv_addr[1])
 		packet = p.generate_packet()
 		return packet
 
 	@staticmethod
-	def data_packet(data, addr, recv_addr, seq_num, ack_num, window):
+	def data_packet(data, addr, recv_addr, seq_num, ack_num, window, snoop=False):
 		p = Packet()
 		p.add_data(data)
-		p.add_TCP_layer(addr[1], recv_addr[1], hashlib.md5(data.encode("utf-8")).hexdigest(), seq_num, ack_num, window)
+		p.add_TCP_layer(addr[1], recv_addr[1], hashlib.md5(data.encode("utf-8")).hexdigest(), seq_num, ack_num, window, snoop=snoop)
 		p.add_IP_layer(addr[0], addr[1], recv_addr[0], recv_addr[1])
 		packet = p.generate_packet()
 		return packet
