@@ -118,11 +118,13 @@ class Routing:
 			packet_transport = packet["transport"]
 			self.pass_on_buffer.put((packet_transport, recv_addr))
 		elif not packet['transport']['syn'] and packet['transport']['snoop']:
-			addr_tup = (packet['src_IP'], packet['src_port'], packet['dst_port'], packet['dst_port'])
+			addr_tup = (packet['src_IP'], packet['src_port'], packet['dst_IP'], packet['dst_port'])
+			addr_tup_rev = (packet['dst_IP'], packet['dst_port'], packet['src_IP'], packet['src_port'])
 			if not packet['transport']['ack']:
 				pkt_effort = packet['transport']['pkt_effort'] - self.etxs[forward_to]
 				pkt_qos = packet['transport']['pkt_qos']
 				if pkt_effort < pkt_qos:
+					# print(packet['transport']['seq_num'], pkt_effort, pkt_qos, "hit")
 					packet['transport']['pkt_effort'] = 1
 					if addr_tup not in self.snoop_buffer:
 						self.snoop_buffer[addr_tup] = {}
@@ -134,20 +136,28 @@ class Routing:
 				soc.sendto(json.dumps(packet).encode("utf-8"), forward_to)
 				soc.close()
 			elif packet['transport']['ack']:
-				if addr_tup not in self.snoop_buffer:
-					self.snoop_buffer[addr_tup] = {}
-					self.snoop_buffer[addr_tup]['last_ack'] = packet['transport']['ack_num']
-				elif packet['transport']['ack_num'] > self.snoop_buffer[addr_tup]['last_ack']:
-					for i in range(self.snoop_buffer[addr_tup]['last_ack'], packet['transport']['ack_num']):
-						if i in self.snoop_buffer[addr_tup]:
-							del self.snoop_buffer[addr_tup][i]
-					self.snoop_buffer[addr_tup]['last_ack'] = packet['transport']['ack_num']
-				elif packet['transport']['ack_num'] == self.snoop_buffer[addr_tup]['last_ack'] and packet['transport']['ack_num'] in self.snoop_buffer[addr_tup]:
-					snooped_pkt = self.snoop_buffer[addr_tup][packet['transport']['ack_num']]
+				if addr_tup_rev not in self.snoop_buffer:
+					self.snoop_buffer[addr_tup_rev] = {}
+					self.snoop_buffer[addr_tup_rev]['last_ack'] = packet['transport']['ack_num']
+				if packet['transport']['ack_num'] > self.snoop_buffer[addr_tup_rev]['last_ack']:
+					for i in range(self.snoop_buffer[addr_tup_rev]['last_ack'], packet['transport']['ack_num']):
+						if i in self.snoop_buffer[addr_tup_rev]:
+							del self.snoop_buffer[addr_tup_rev][i]
+					self.snoop_buffer[addr_tup_rev]['last_ack'] = packet['transport']['ack_num']
+					soc = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+					soc.sendto(json.dumps(packet).encode("utf-8"), forward_to)
+					soc.close()
+				elif packet['transport']['ack_num'] == self.snoop_buffer[addr_tup_rev]['last_ack'] and packet['transport']['ack_num'] in self.snoop_buffer[addr_tup_rev]:
+					print(packet['transport']['ack_num'], "hit")
+					snooped_pkt = self.snoop_buffer[addr_tup_rev][packet['transport']['ack_num']]
 					soc = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 					fwd_to = self.routes[(snooped_pkt['dst_IP'], snooped_pkt['dst_port'])]
 					soc.sendto(json.dumps(snooped_pkt).encode("utf-8"), fwd_to)
-					soc.close()		
+					soc.close()
+				else:
+					soc = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+					soc.sendto(json.dumps(packet).encode("utf-8"), forward_to)
+					soc.close()	
 		else:
 			soc = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 			soc.sendto(json.dumps(packet).encode("utf-8"), forward_to)
