@@ -36,7 +36,7 @@ def merge_and_count(dicts):
 	tx = []
 	for i in d.keys():
 		tx.append(d[i])
-	print(sorted(tx)[-20:])
+	print(sorted(tx)[-250:])
 	return sorted(tx)[:-1]
 
 def cdf(x):

@@ -89,8 +89,8 @@ class Routing:
 				msg, s_addr = soc.recvfrom(1224)
 				packet = json.loads(msg.decode("utf-8")) # jsonify message here
 				# artificial packet dropping with probability 0.1
-				if random.randrange(1000) < 1:
-					continue
+				# if random.randrange(1000) < 1:
+				# 	continue
 			# Check for probe packet
 				if packet['transport']['etx'] and packet['transport']['reply']:
 					r_addr = (packet["src_IP"], packet["src_port"])
