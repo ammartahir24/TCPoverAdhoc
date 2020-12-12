@@ -51,6 +51,8 @@ On each of the raspberry pi, do this:
 
 ## Experiments
 
+Change the confif.py file according to your pi setup
+
 ### Base experiments
 
 Simple TCP:
