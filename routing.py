@@ -7,7 +7,7 @@ import packet
 import random
 
 class Routing:
-	def __init__(self, buffer_capacity, i, ecn=False):
+	def __init__(self, buffer_capacity, i, exp_name, ecn=False):
 		# static route
 		self.route_configs = [
 		{
@@ -40,6 +40,7 @@ class Routing:
 		self.addr = self.addr_configs[i]
 		print("routing - running on ", self.addr)
 		
+		self.exp_name = exp_name
 		self.etx_timeout = 0.0005
 		self.etxs = {}
 		self.etx_queues = {}
@@ -73,6 +74,7 @@ class Routing:
 		self.probe_buffer = queue.SimpleQueue()
 		# ECN on/off
 		self.ecn = ecn
+		self.transmission_log = {}
 		threading.Thread(target = self.listener).start()
 		threading.Thread(target = self.forwarding).start()
 		# Start listener for probe
@@ -87,8 +89,8 @@ class Routing:
 				msg, s_addr = soc.recvfrom(1224)
 				packet = json.loads(msg.decode("utf-8")) # jsonify message here
 				# artificial packet dropping with probability 0.1
-				if random.randrange(1000) < 5:
-					continue
+				# if random.randrange(1000) < 1:
+				# 	continue
 			# Check for probe packet
 				if packet['transport']['etx'] and packet['transport']['reply']:
 					r_addr = (packet["src_IP"], packet["src_port"])
@@ -105,7 +107,10 @@ class Routing:
 	def forwarding(self):
 		while True:
 			packet = self.router_queue.get()
-			time.sleep(0.00005)
+			if packet['transport']['data'] == 'transmission_log':
+				with open(self.exp_name+"_"+self.addr[0]+'_'+str(self.addr[1])+'_transmission_log.txt', 'w') as outfile:
+				    json.dump(self.transmission_log, outfile)
+			# time.sleep(0.00005)
 			# A normal packet
 			self.process(packet)
 		
@@ -121,7 +126,8 @@ class Routing:
 			addr_tup = (packet['src_IP'], packet['src_port'], packet['dst_IP'], packet['dst_port'])
 			addr_tup_rev = (packet['dst_IP'], packet['dst_port'], packet['src_IP'], packet['src_port'])
 			if not packet['transport']['ack']:
-				pkt_effort = packet['transport']['pkt_effort'] - self.etxs[forward_to]
+				pkt_effort = packet['transport']['pkt_effort'] * self.etxs[forward_to]
+				packet['transport']['success_prob'] *= self.etxs[forward_to]
 				pkt_qos = packet['transport']['pkt_qos']
 				if pkt_effort < pkt_qos:
 					# print(packet['transport']['seq_num'], pkt_effort, pkt_qos, "hit")
@@ -135,6 +141,10 @@ class Routing:
 				soc = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 				soc.sendto(json.dumps(packet).encode("utf-8"), forward_to)
 				soc.close()
+				if packet['transport']['seq_num'] in self.transmission_log:
+					self.transmission_log[packet['transport']['seq_num']] += 1
+				else:
+					self.transmission_log[packet['transport']['seq_num']] = 1
 			elif packet['transport']['ack']:
 				if addr_tup_rev not in self.snoop_buffer:
 					self.snoop_buffer[addr_tup_rev] = {}
@@ -147,21 +157,39 @@ class Routing:
 					soc = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 					soc.sendto(json.dumps(packet).encode("utf-8"), forward_to)
 					soc.close()
+					if packet['transport']['seq_num'] in self.transmission_log:
+						self.transmission_log[packet['transport']['seq_num']] += 1
+					else:
+						self.transmission_log[packet['transport']['seq_num']] = 1
 				elif packet['transport']['ack_num'] == self.snoop_buffer[addr_tup_rev]['last_ack'] and packet['transport']['ack_num'] in self.snoop_buffer[addr_tup_rev]:
 					print(packet['transport']['ack_num'], "hit")
 					snooped_pkt = self.snoop_buffer[addr_tup_rev][packet['transport']['ack_num']]
+					snooped_pkt['transport']['snooped'] = True
 					soc = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 					fwd_to = self.routes[(snooped_pkt['dst_IP'], snooped_pkt['dst_port'])]
 					soc.sendto(json.dumps(snooped_pkt).encode("utf-8"), fwd_to)
 					soc.close()
+					if snooped_pkt['transport']['seq_num'] in self.transmission_log:
+						self.transmission_log[snooped_pkt['transport']['seq_num']] += 1
+					else:
+						self.transmission_log[snooped_pkt['transport']['seq_num']] = 1
 				else:
 					soc = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 					soc.sendto(json.dumps(packet).encode("utf-8"), forward_to)
 					soc.close()	
+					if packet['transport']['seq_num'] in self.transmission_log:
+						self.transmission_log[packet['transport']['seq_num']] += 1
+					else:
+						self.transmission_log[packet['transport']['seq_num']] = 1
 		else:
 			soc = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 			soc.sendto(json.dumps(packet).encode("utf-8"), forward_to)
 			soc.close()
+			if packet['transport']['seq_num'] in self.transmission_log:
+				self.transmission_log[packet['transport']['seq_num']] += 1
+			else:
+				self.transmission_log[packet['transport']['seq_num']] = 1
+
 	
 	def send(self, packet):
 		try:
