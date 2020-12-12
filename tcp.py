@@ -6,18 +6,16 @@ import random
 import threading
 import hashlib
 import time
-import numpy
 
 
 class ClientSocket:
-	def __init__(self, addr, sender_addr, tcp_socket, seq_num, ack_num, rwnd_size, rtt, exp_name, sack, snoop):
-		self.SACK = sack
-		self.snoop = snoop
+	def __init__(self, addr, sender_addr, tcp_socket, seq_num, ack_num, rwnd_size, rtt):
+		self.SACK = True
+		self.snoop = True
 		self.sender_addr = sender_addr[0]
 		self.sender_port = sender_addr[1]
 		self.addr = addr
 		self.tcp_socket = tcp_socket
-		self.exp_name = exp_name
 		self.seq_num = seq_num
 		self.base_seq_num = seq_num
 		self.curr_ack = seq_num
@@ -27,17 +25,14 @@ class ClientSocket:
 		self.packets_in_trst = 0
 		self.ack_to_update = self.seq_num
 		self.i = 0
-		self.sacked = {}
-		self.rwnd_size = 500
+		self.sacked = []
+		self.rwnd_size = 50
 		self.cwnd_size = 1
 		self.ssthresh = rwnd_size
 		self.rwnd_recv = rwnd_size
 		self.jugaad = False
 		self.MTU = 600
 		self.rtt = 0.1
-		self.throughputs = []
-		self.cwnd_log = []
-		self.success_prob = 1
 		if rtt < 0.01:
 			self.rtt = 0.01
 		self.rto = self.rtt * 40
@@ -56,10 +51,10 @@ class ClientSocket:
 		dup_acks = 0
 		# print("handle_acks")
 		while self.curr_ack < self.seq_num + num_of_chunks:
-			# time.sleep(0.0001)
+			time.sleep(0.0001)
 			if self.packets_in_trst > 0:
 				try:
-					ack_packet = self.tcp_socket.get_acks((self.sender_addr, self.sender_port), timeout=self.rto*40)
+					ack_packet = self.tcp_socket.get_acks((self.sender_addr, self.sender_port), timeout=self.rto)
 					# print(self.ack_to_update, ack_packet['ack_num'], self.curr_ack, self.packets_in_trst)
 					if ack_packet['ack_num'] >= self.ack_to_update:
 						# self.seq_num = self.ack_to_update
@@ -73,12 +68,11 @@ class ClientSocket:
 							self.cwnd_size += 1
 						print("Successful delivery.")
 						print(self.ssthresh, self.cwnd_size)
-						self.cwnd_log += [(self.cwnd_size, self.ssthresh)]
 						self.make_update = True
 						self.ack_to_update += self.cwnd_size
 						dup_acks = 0
 						if self.SACK:
-							self.decompress(ack_packet['sack'])
+							self.sacked = self.decompress(ack_packet['sack'])
 						# break
 					elif ack_packet['ack_num'] > self.curr_ack:
 						self.packets_in_trst -= (ack_packet['ack_num'] - self.curr_ack)
@@ -87,13 +81,12 @@ class ClientSocket:
 						self.rwnd_recv = ack_packet['window']
 						dup_acks = 0
 						if self.SACK:
-							self.decompress(ack_packet['sack'])
+							self.sacked = self.decompress(ack_packet['sack'])
 					elif ack_packet['ack_num'] == self.curr_ack:
-						if ack_packet['dupack']:
-							dup_acks += 1
+						dup_acks += 1
 						self.rwnd_recv = ack_packet['window']
 						if self.SACK:
-							self.decompress(ack_packet['sack'])
+							self.sacked = self.decompress(ack_packet['sack'])
 						if dup_acks == 3:
 							self.shift_back = True
 							self.i = (self.curr_ack - self.seq_num)
@@ -102,7 +95,6 @@ class ClientSocket:
 							self.packets_in_trst = 0
 							self.ack_to_update = self.i + self.seq_num + self.cwnd_size
 							print("dupacks.")
-							self.cwnd_log += [(self.cwnd_size, self.ssthresh)]
 							print(self.ssthresh, self.cwnd_size)
 						# break
 				except:
@@ -111,7 +103,6 @@ class ClientSocket:
 					# self.seq_num = curr_ack
 					self.ssthresh = int(1 + self.cwnd_size/2)
 					self.cwnd_size = 1
-					self.cwnd_log += [(self.cwnd_size, self.ssthresh)]
 					self.packets_in_trst = 0
 					self.ack_to_update = self.i + self.seq_num + self.cwnd_size
 					print("packet loss due to timeout", self.i, (self.curr_ack - self.seq_num))
@@ -122,8 +113,6 @@ class ClientSocket:
 					ack_packet = self.tcp_socket.get_acks((self.sender_addr, self.sender_port), timeout=self.rto)
 					self.rwnd_recv = ack_packet['window']
 					self.jugaad = False
-					if self.SACK:
-						self.decompress(ack_packet['sack'])
 				except:
 					pass
 
@@ -134,7 +123,6 @@ class ClientSocket:
 		# manage sends and acks here
 		
 		chunks = self.make_chunks(data)
-		chunks += ['transmission_log']
 		self.ack_to_update = self.seq_num + self.cwnd_size
 		threading.Thread(target = self.handle_acks, args=(len(chunks),)).start()
 		i = 0
@@ -143,9 +131,8 @@ class ClientSocket:
 			if self.SACK and (self.seq_num + i) in self.sacked:
 				i += 1
 				# self.packets_in_trst += 1
-				print(self.seq_num + i, "sacked")
 				continue
-			# time.sleep(0.0001)
+			time.sleep(0.0001)
 			pkts_to_send = min(self.rwnd_recv, (self.cwnd_size - self.packets_in_trst))
 			if self.packets_in_trst == 0 and self.rwnd_recv <= 0:
 				self.jugaad = True
@@ -165,14 +152,11 @@ class ClientSocket:
 
 				if i < len(chunks):
 					data_pkt = packet.Packet.data_packet(chunks[i], self.addr, (self.sender_addr, self.sender_port), self.seq_num+i, self.ack_num, self.rwnd_size, snoop=self.snoop)
-					if chunks[i] == 'transmission_log':
-						self.send_log()
 					# data_pkt['transport']['snoop'] = True
 					# data_pkt['transport']['pkt_qos'] = 0.8
 					self.tcp_socket.put(data_pkt)
 					self.packets_in_trst += 1
 					i += 1
-		# transmission_log_pkt = packet.Packet.data_packet("transmission_log", self.addr, (self.sender_addr, self.sender_port), self.seq_num+i, self.ack_num, self.rwnd_size, snoop=self.snoop)
 				# curr_ack = self.seq_num
 				# dup_acks = 0
 				# while True:
@@ -241,9 +225,7 @@ class ClientSocket:
 		sacks = []
 		for i in range(int(len(nums)/2)):
 			sacks += [nums[2*i]+k for k in range(nums[2*i+1] - nums[2*i] + 1)]
-		for each in sacks:
-			self.sacked[each] = 1
-		# return sacks
+		return sacks
 
 	def recv(self, num_of_chunks):
 		data = self.rwnd.get()
@@ -260,10 +242,8 @@ class ClientSocket:
 		# 	return data
 		while num_of_chunks > 0:
 			try:
-				d = self.rwnd.get(block=True, timeout=self.rto*40)
-				self.throughputs += [time.time()]
-				if d != 'transmission_log':
-					data += d
+				d = self.rwnd.get(block=True, timeout=self.rto*4)
+				data += d
 				num_of_chunks -= 1
 				# self.rwnd_size += 1
 			except:
@@ -309,7 +289,6 @@ class ClientSocket:
 						out_of_order.put((pn, pkt2))
 
 				# Create the ACK
-				# if self.tcp_socket.empty((self.sender_addr, self.sender_port)):
 				window = self.rwnd_size - self.rwnd.qsize()
 				ack = packet.Packet().ack_packet(self.addr, 
 					   sender_addr_port,
@@ -369,7 +348,6 @@ class ClientSocket:
 						   snoop = self.snoop)
 					
 					# # Send the ACK
-					ack['transport']['dupack'] = False
 					self.tcp_socket.put(ack)
 					num_small_acks = 0
 				# # Check buffer for next packet
@@ -400,14 +378,6 @@ class ClientSocket:
 
 		return chunks
 	
-	def recv_log(self):
-		file_name = self.exp_name+"_"+self.addr[0]+"_"+str(self.addr[1])+"_thrpt.txt"
-		numpy.savetxt(file_name, numpy.array(self.throughputs))
-
-	def send_log(self):
-		file_name = self.exp_name+"_"+self.addr[0]+"_"+str(self.addr[1])+"_cwnd.txt"
-		numpy.savetxt(file_name, numpy.array(self.cwnd_log))
-
 
 	def close(self):
 		# exchange fin packets here
@@ -416,16 +386,13 @@ class ClientSocket:
 
 
 class TCPSocket:
-	def __init__(self, i, exp_name, sack, snoop):
-		self.routing = routing.Routing(1000, i, exp_name)
+	def __init__(self, i):
+		self.routing = routing.Routing(100, i)
 		self.addr = self.routing.addr
 		self.queues = {}
-		self.sack = sack
-		self.snoop = snoop
 		self.queues[1] = queue.SimpleQueue()
 		self.ack_queues = {}
 		self.default_rwnd = 50
-		self.exp_name = exp_name
 		threading.Thread(target = self.listener).start()
 
 
@@ -455,7 +422,7 @@ class TCPSocket:
 		end_time = time.time_ns()
 		rtt = (end_time - start_time) / (10**9)
 		seq_num = seq_num + 1
-		conn = ClientSocket(self.addr, addr, self, seq_num, ack_num, self.default_rwnd, rtt, self.exp_name, self.sack, self.snoop)
+		conn = ClientSocket(self.addr, addr, self, seq_num, ack_num, self.default_rwnd, rtt)
 		return conn, addr
 
 	def connect(self, addr):
@@ -473,15 +440,12 @@ class TCPSocket:
 		seq_num = seq_num + 1
 		ack_packet = packet.Packet.ack_packet(self.addr, addr, seq_num, ack_num, self.default_rwnd)
 		self.put(ack_packet)
-		conn = ClientSocket(self.addr, addr, self, seq_num, ack_num, self.default_rwnd, rtt, self.exp_name, self.sack, self.snoop)
+		conn = ClientSocket(self.addr, addr, self, seq_num, ack_num, self.default_rwnd, rtt)
 		return conn
 		
 
 	def get(self, addr):
 		return self.queues[addr].get()
-
-	def empty(self, addr):
-		return self.queues[addr].empty()
 
 	def put(self, data):
 		# print("Sending", data)

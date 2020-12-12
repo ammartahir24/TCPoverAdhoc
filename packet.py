@@ -35,13 +35,10 @@ class Packet:
 			"sack" : sack,
 			"snoop" : snoop,
 			"pkt_effort" : 1,
-			"pkt_qos" : 0.95,
-			"success_prob": 1,
-			"snooped": False,
+			"pkt_qos" : 1,
 			"etx" : False,
 			"reply" : False,
-			"etx_num" : 0,
-			"dupack" : True
+			"etx_num" : 0
 		}
 
 	def add_UDP_layer(self, src_port, dst_port, checksum):
