@@ -35,7 +35,7 @@ class Packet:
 			"sack" : sack,
 			"snoop" : snoop,
 			"pkt_effort" : 1,
-			"pkt_qos" : 0.97,
+			"pkt_qos" : 0.999,
 			"success_prob": 1,
 			"snooped": False,
 			"etx" : False,

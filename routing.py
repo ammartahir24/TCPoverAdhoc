@@ -261,7 +261,7 @@ class Routing:
 		probe_etx = self.etxs[addr]
 		
 		# Represent the last 100 packets in a list. 1 means a packet received in that one second period. A 0 means no packet.
-		pkt_list = [1] * 100
+		pkt_list = [1] * 1000
 		soc_etx = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 
 		# check if the neighbouring node is up yet 
@@ -311,7 +311,7 @@ class Routing:
 				pkt_list.append(1)
 			else:
 				pkt_list.append(0)
-			if len(pkt_list) >= 100:
+			if len(pkt_list) >= 1000:
 				pkt_list.pop(0)
 			# if not self.etx_queues[addr].empty():
 			# 	probe_etx = self.etx_queues[addr].get()
@@ -326,12 +326,12 @@ class Routing:
 			
 			# Update the ETX between the current node (here) to the neighbor node
 			# TODO: divide by zero?
-			pkt_probability = (1 - sum(pkt_list) / len(pkt_list)) # * (1 - (probe_etx / len(pkt_list)))
+			pkt_probability = sum(pkt_list) / len(pkt_list) # * (1 - (probe_etx / len(pkt_list)))
 			self.etxs[addr] = pkt_probability #1 / pkt_probability
 			# print(addr, self.etxs[addr])
 			#print(self.addr, self.etxs[addr])
 			
 			# Lock the packet sending to the system clock and run every second
-			time.sleep(0.1)
+			time.sleep(0.01)
 			
 		
