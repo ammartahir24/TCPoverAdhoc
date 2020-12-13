@@ -5,6 +5,7 @@ import json
 import time
 import packet
 import random
+import numpy
 
 class Routing:
 	def __init__(self, buffer_capacity, i, exp_name, ecn=False):
@@ -75,11 +76,22 @@ class Routing:
 		# ECN on/off
 		self.ecn = ecn
 		self.transmission_log = {}
+		self.memory_log = []
+		self.hits = 0
 		threading.Thread(target = self.listener).start()
 		threading.Thread(target = self.forwarding).start()
 		# Start listener for probe
 		threading.Thread(target = self.listener_probe).start()
+		threading.Thread(target = self.log_memory).start()
 		
+
+	def log_memory(self):
+		while True:
+			time.sleep(0.1)
+			dict_size = 0
+			for addr in self.snoop_buffer.keys():
+				dict_size += len(self.snoop_buffer[addr].keys())
+			self.memory_log.append((time.time(), dict_size))
 
 	def listener(self):
 		soc = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
@@ -89,8 +101,8 @@ class Routing:
 				msg, s_addr = soc.recvfrom(1224)
 				packet = json.loads(msg.decode("utf-8")) # jsonify message here
 				# artificial packet dropping with probability 0.1
-				# if random.randrange(1000) < 1:
-				# 	continue
+				if random.randrange(1000) < 1:
+					continue
 			# Check for probe packet
 				if packet['transport']['etx'] and packet['transport']['reply']:
 					r_addr = (packet["src_IP"], packet["src_port"])
@@ -108,8 +120,13 @@ class Routing:
 		while True:
 			packet = self.router_queue.get()
 			if packet['transport']['data'] == 'transmission_log':
-				with open(self.exp_name+"_"+self.addr[0]+'_'+str(self.addr[1])+'_transmission_log.txt', 'w') as outfile:
+				fname = self.exp_name+"/"+self.addr[0]+'_'+str(self.addr[1])
+				with open(fname+'_transmission_log.txt', 'w') as outfile:
 				    json.dump(self.transmission_log, outfile)
+				numpy.savetxt(fname+'_memory_log.txt', numpy.array(self.memory_log))
+				file = open(fname+"_hits.txt", "w")
+				file.write(str(self.hits))
+				file.close()
 			# time.sleep(0.00005)
 			# A normal packet
 			self.process(packet)
@@ -129,15 +146,23 @@ class Routing:
 				pkt_effort = packet['transport']['pkt_effort'] * self.etxs[forward_to]
 				packet['transport']['success_prob'] *= self.etxs[forward_to]
 				pkt_qos = packet['transport']['pkt_qos']
-				if pkt_effort < pkt_qos:
+				if packet['transport']['snoop_mode'] == 0 and packet['transport']['snoop_at'] < 0 and pkt_effort < pkt_qos:
 					# print(packet['transport']['seq_num'], pkt_effort, pkt_qos, "hit")
 					packet['transport']['pkt_effort'] = 1
 					if addr_tup not in self.snoop_buffer:
 						self.snoop_buffer[addr_tup] = {}
 						self.snoop_buffer[addr_tup]['last_ack'] = 0
 					self.snoop_buffer[addr_tup][packet['transport']['seq_num']] = packet
+				elif packet['transport']['snoop_mode'] == 1:
+					if packet['transport']['snoop_at'] == 0:
+						if addr_tup not in self.snoop_buffer:
+							self.snoop_buffer[addr_tup] = {}
+							self.snoop_buffer[addr_tup]['last_ack'] = 0
+						self.snoop_buffer[addr_tup][packet['transport']['seq_num']] = packet
+					packet['transport']['snoop_at'] -= 1
 				else:
 					packet['transport']['pkt_effort'] = pkt_effort
+					packet['transport']['snoop_at'] -= 1
 				soc = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 				soc.sendto(json.dumps(packet).encode("utf-8"), forward_to)
 				soc.close()
@@ -151,7 +176,7 @@ class Routing:
 					self.snoop_buffer[addr_tup_rev]['last_ack'] = packet['transport']['ack_num']
 				if packet['transport']['ack_num'] > self.snoop_buffer[addr_tup_rev]['last_ack']:
 					for i in range(self.snoop_buffer[addr_tup_rev]['last_ack'], packet['transport']['ack_num']):
-						if i in self.snoop_buffer[addr_tup_rev]:
+						if i in self.snoop_buffer[addr_tup_rev].keys():
 							del self.snoop_buffer[addr_tup_rev][i]
 					self.snoop_buffer[addr_tup_rev]['last_ack'] = packet['transport']['ack_num']
 					soc = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
@@ -163,6 +188,7 @@ class Routing:
 						self.transmission_log[packet['transport']['seq_num']] = 1
 				elif packet['transport']['ack_num'] == self.snoop_buffer[addr_tup_rev]['last_ack'] and packet['transport']['ack_num'] in self.snoop_buffer[addr_tup_rev]:
 					print(packet['transport']['ack_num'], "hit")
+					self.hits += 1
 					snooped_pkt = self.snoop_buffer[addr_tup_rev][packet['transport']['ack_num']]
 					snooped_pkt['transport']['snooped'] = True
 					soc = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)

@@ -7,6 +7,7 @@ import threading
 import hashlib
 import time
 import numpy
+import os
 
 
 class ClientSocket:
@@ -38,6 +39,8 @@ class ClientSocket:
 		self.throughputs = []
 		self.cwnd_log = []
 		self.success_prob = 1
+		self.observed_packet_losses = 0
+		self.observed_rto = 0
 		if rtt < 0.01:
 			self.rtt = 0.01
 		self.rto = self.rtt * 40
@@ -101,6 +104,7 @@ class ClientSocket:
 							self.cwnd_size = self.ssthresh
 							self.packets_in_trst = 0
 							self.ack_to_update = self.i + self.seq_num + self.cwnd_size
+							self.observed_packet_losses += 1
 							print("dupacks.")
 							self.cwnd_log += [(self.cwnd_size, self.ssthresh)]
 							print(self.ssthresh, self.cwnd_size)
@@ -116,6 +120,7 @@ class ClientSocket:
 					self.ack_to_update = self.i + self.seq_num + self.cwnd_size
 					print("packet loss due to timeout", self.i, (self.curr_ack - self.seq_num))
 					print(self.ssthresh, self.cwnd_size)
+					self.observed_rto += 1
 					# break
 			elif self.jugaad:
 				try:
@@ -169,6 +174,8 @@ class ClientSocket:
 						self.send_log()
 					# data_pkt['transport']['snoop'] = True
 					# data_pkt['transport']['pkt_qos'] = 0.8
+					# data_pkt['transport']['snoop_mode'] = 1
+					# data_pkt['transport']['snoop_at'] = 1
 					self.tcp_socket.put(data_pkt)
 					self.packets_in_trst += 1
 					i += 1
@@ -401,13 +408,15 @@ class ClientSocket:
 		return chunks
 	
 	def recv_log(self):
-		file_name = self.exp_name+"_"+self.addr[0]+"_"+str(self.addr[1])+"_thrpt.txt"
+		file_name = self.exp_name+"/"+self.addr[0]+"_"+str(self.addr[1])+"_thrpt.txt"
 		numpy.savetxt(file_name, numpy.array(self.throughputs))
 
 	def send_log(self):
-		file_name = self.exp_name+"_"+self.addr[0]+"_"+str(self.addr[1])+"_cwnd.txt"
-		numpy.savetxt(file_name, numpy.array(self.cwnd_log))
-
+		file_name = self.exp_name+"/"+self.addr[0]+"_"+str(self.addr[1])
+		numpy.savetxt(file_name+"_cwnd.txt", numpy.array(self.cwnd_log))
+		file = open(file_name+"_loss-rto.txt", "w")
+		file.write(str(self.observed_packet_losses)+", "+str(self.observed_rto))
+		file.close()
 
 	def close(self):
 		# exchange fin packets here
@@ -426,6 +435,8 @@ class TCPSocket:
 		self.ack_queues = {}
 		self.default_rwnd = 50
 		self.exp_name = exp_name
+		if not os.path.exists(exp_name):
+			os.mkdir(exp_name)
 		threading.Thread(target = self.listener).start()
 
 

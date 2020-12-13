@@ -85,8 +85,12 @@ Repeat above experiments with slightly different experiment names e.g. lossy_sim
 
 ### Varying value of `pkt_qos`
 
-Comment out line 92-93 again
-
 Repeat Sack+Snoop experiment with following values of pkt_qos: 0.9, 0.95, 0.97, 0.99, 1
 
 You can change value of pkt_qos in line 38 of `packet.py`
+
+### Non-adaptive Snooping
+
+Uncomment line 177-178 in `tcp.py`
+
+Run one experiment with snoop_at set to 1 and another with snoop_at set to 2 (Use Sack+Snoop setting)
