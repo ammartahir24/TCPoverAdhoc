@@ -101,7 +101,7 @@ class Routing:
 				msg, s_addr = soc.recvfrom(1224)
 				packet = json.loads(msg.decode("utf-8")) # jsonify message here
 				# artificial packet dropping with probability 0.1
-				if random.randrange(1000) < 1:
+				if random.randrange(1000) < 5:
 					continue
 			# Check for probe packet
 				if packet['transport']['etx'] and packet['transport']['reply']:
@@ -135,13 +135,43 @@ class Routing:
 		packet_dst = (packet["dst_IP"], packet["dst_port"])
 		forward_to = self.routes[packet_dst]
 		# print("routing - Forwarding to", forward_to)
+		addr_tup = (packet['src_IP'], packet['src_port'], packet['dst_IP'], packet['dst_port'])
+		addr_tup_rev = (packet['dst_IP'], packet['dst_port'], packet['src_IP'], packet['src_port'])
 		if forward_to == 0:
-			recv_addr = packet["src_IP"], packet["src_port"]
-			packet_transport = packet["transport"]
-			self.pass_on_buffer.put((packet_transport, recv_addr))
+			if not packet['transport']['syn'] and packet['transport']['snoop'] and packet['transport']['ack']:
+				if addr_tup_rev not in self.snoop_buffer:
+					self.snoop_buffer[addr_tup_rev] = {}
+					self.snoop_buffer[addr_tup_rev]['last_ack'] = packet['transport']['ack_num']
+				if packet['transport']['ack_num'] > self.snoop_buffer[addr_tup_rev]['last_ack']:
+					for i in range(self.snoop_buffer[addr_tup_rev]['last_ack'], packet['transport']['ack_num']):
+						if i in self.snoop_buffer[addr_tup_rev].keys():
+							del self.snoop_buffer[addr_tup_rev][i]
+					self.snoop_buffer[addr_tup_rev]['last_ack'] = packet['transport']['ack_num']
+					recv_addr = packet["src_IP"], packet["src_port"]
+					packet_transport = packet["transport"]
+					self.pass_on_buffer.put((packet_transport, recv_addr))		
+				elif packet['transport']['ack_num'] == self.snoop_buffer[addr_tup_rev]['last_ack'] and packet['transport']['ack_num'] in self.snoop_buffer[addr_tup_rev]:
+					print(packet['transport']['ack_num'], "hit")
+					self.hits += 1
+					snooped_pkt = self.snoop_buffer[addr_tup_rev][packet['transport']['ack_num']]
+					snooped_pkt['transport']['snooped'] = True
+					soc = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+					fwd_to = self.routes[(snooped_pkt['dst_IP'], snooped_pkt['dst_port'])]
+					soc.sendto(json.dumps(snooped_pkt).encode("utf-8"), fwd_to)
+					soc.close()
+					if snooped_pkt['transport']['seq_num'] in self.transmission_log:
+						self.transmission_log[snooped_pkt['transport']['seq_num']] += 1
+					else:
+						self.transmission_log[snooped_pkt['transport']['seq_num']] = 1
+				else:
+					recv_addr = packet["src_IP"], packet["src_port"]
+					packet_transport = packet["transport"]
+					self.pass_on_buffer.put((packet_transport, recv_addr))
+			else:
+				recv_addr = packet["src_IP"], packet["src_port"]
+				packet_transport = packet["transport"]
+				self.pass_on_buffer.put((packet_transport, recv_addr))
 		elif not packet['transport']['syn'] and packet['transport']['snoop']:
-			addr_tup = (packet['src_IP'], packet['src_port'], packet['dst_IP'], packet['dst_port'])
-			addr_tup_rev = (packet['dst_IP'], packet['dst_port'], packet['src_IP'], packet['src_port'])
 			if not packet['transport']['ack']:
 				pkt_effort = packet['transport']['pkt_effort'] * self.etxs[forward_to]
 				packet['transport']['success_prob'] *= self.etxs[forward_to]
